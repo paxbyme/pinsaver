@@ -26,10 +26,9 @@ def download_best(url: str) -> DownloadResult:
     outtmpl = os.path.join(tmpdir, "%(id)s.%(ext)s")
 
     ydl_opts = {
-        # Pinterest uses HLS with separate video+audio streams.
-        # bestvideo+bestaudio picks highest resolution video + audio and
-        # ffmpeg merges them into a single MP4.
-        "format": "bestvideo+bestaudio/best",
+        # Try best merged quality first; fall back to best single-stream
+        # so it works even without ffmpeg.
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best",
         "merge_output_format": "mp4",
         "outtmpl": outtmpl,
         "quiet": True,
