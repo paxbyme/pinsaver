@@ -33,4 +33,14 @@ DOWNLOAD_FAILED = (
     "or Pinterest changed something. Please try again later."
 )
 
+BLOCKED = (
+    "❌ Pinterest blocked the request (403 Forbidden). "
+    "This usually resolves on its own — please try again in a few minutes."
+)
+
+RATE_LIMITED = (
+    "⏳ Pinterest is rate-limiting requests right now. "
+    "Please wait a minute and try again."
+)
+
 GENERIC_ERROR = "❌ Something went wrong. Please try again."

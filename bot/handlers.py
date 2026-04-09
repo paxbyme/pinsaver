@@ -57,6 +57,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif result.error == "no_video":
         await update.message.reply_text(messages.NO_VIDEO)
 
+    # ── pinterest blocked the bot ─────────────────────────────────────────
+    elif result.error == "blocked":
+        logger.warning("Pinterest 403 for %s", url)
+        await update.message.reply_text(messages.BLOCKED)
+
+    elif result.error == "rate_limited":
+        logger.warning("Pinterest rate limit for %s", url)
+        await update.message.reply_text(messages.RATE_LIMITED)
+
     # ── extraction failed ─────────────────────────────────────────────────
     else:
         logger.warning("Download failed for %s: %s", url, result.error)

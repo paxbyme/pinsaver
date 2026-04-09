@@ -1,9 +1,25 @@
+import logging
 import os
 import shutil
+import subprocess
 import tempfile
 from dataclasses import dataclass
 
 import yt_dlp
+
+logger = logging.getLogger(__name__)
+
+# Mimic a real browser — Pinterest 403s yt-dlp's default UA aggressively.
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Referer": "https://www.pinterest.com/",
+}
 
 
 @dataclass
@@ -26,15 +42,16 @@ def download_best(url: str) -> DownloadResult:
     tmpdir = tempfile.mkdtemp(prefix="pinsaver_")
     outtmpl = os.path.join(tmpdir, "%(id)s.%(ext)s")
 
-    has_ffmpeg = shutil.which("ffmpeg") is not None
+    has_ffmpeg = _ffmpeg_available()
     ydl_opts = {
-        "format": "bestvideo+bestaudio/best" if has_ffmpeg else "best[ext=mp4]/best",
+        "format": "bestvideo+bestaudio/best" if has_ffmpeg else "best",
         "merge_output_format": "mp4",
         "outtmpl": outtmpl,
         "quiet": True,
         "no_warnings": True,
         "retries": 3,
         "socket_timeout": 30,
+        "http_headers": _HEADERS,
     }
 
     try:
@@ -59,10 +76,16 @@ def download_best(url: str) -> DownloadResult:
 
     except yt_dlp.utils.DownloadError as exc:
         msg = str(exc).lower()
+        logger.debug("yt-dlp DownloadError for %s: %s", url, exc)
         if "no video" in msg or "not a video" in msg or "unsupported url" in msg:
             return DownloadResult(success=False, error="no_video")
+        if "403" in msg or "forbidden" in msg:
+            return DownloadResult(success=False, error="blocked")
+        if "429" in msg or "rate" in msg or "too many" in msg:
+            return DownloadResult(success=False, error="rate_limited")
         return DownloadResult(success=False, error=str(exc))
     except Exception as exc:  # noqa: BLE001
+        logger.debug("Unexpected error for %s: %s", url, exc)
         return DownloadResult(success=False, error=str(exc))
 
 
@@ -75,6 +98,7 @@ def get_direct_url(url: str) -> DownloadResult:
         "format": "bestvideo+bestaudio/best",
         "quiet": True,
         "no_warnings": True,
+        "http_headers": _HEADERS,
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -89,6 +113,21 @@ def get_direct_url(url: str) -> DownloadResult:
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
+def _ffmpeg_available() -> bool:
+    """Actually run ffmpeg to confirm it works, not just check PATH."""
+    if not shutil.which("ffmpeg"):
+        return False
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-version"],
+            capture_output=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
 
 def _best_url(info: dict) -> str | None:
     """Pull the best video URL out of yt-dlp's info dict."""
