@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 from dataclasses import dataclass
 
@@ -25,10 +26,9 @@ def download_best(url: str) -> DownloadResult:
     tmpdir = tempfile.mkdtemp(prefix="pinsaver_")
     outtmpl = os.path.join(tmpdir, "%(id)s.%(ext)s")
 
+    has_ffmpeg = shutil.which("ffmpeg") is not None
     ydl_opts = {
-        # Try best merged quality first; fall back to best single-stream
-        # so it works even without ffmpeg.
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best",
+        "format": "bestvideo+bestaudio/best" if has_ffmpeg else "best[ext=mp4]/best",
         "merge_output_format": "mp4",
         "outtmpl": outtmpl,
         "quiet": True,
