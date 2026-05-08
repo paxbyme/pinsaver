@@ -9,6 +9,40 @@ import yt_dlp
 
 logger = logging.getLogger(__name__)
 
+
+class _YDLLogger:
+    """Route yt-dlp output through python logging.
+
+    Image-only pins, removed pins, and unsupported URLs are expected
+    user input — drop them to DEBUG so they don't spam production logs.
+    """
+
+    _EXPECTED_FRAGMENTS = (
+        "no video formats found",
+        "unsupported url",
+        "404",
+    )
+
+    def debug(self, msg: str) -> None:
+        logger.debug(msg)
+
+    def info(self, msg: str) -> None:
+        logger.debug(msg)
+
+    def warning(self, msg: str) -> None:
+        logger.warning(msg)
+
+    def error(self, msg: str) -> None:
+        lower = msg.lower()
+        if any(frag in lower for frag in self._EXPECTED_FRAGMENTS):
+            logger.debug("yt-dlp expected error: %s", msg)
+        else:
+            logger.warning("yt-dlp error: %s", msg)
+
+
+_YDL_LOGGER = _YDLLogger()
+
+
 # Mimic a real browser — Pinterest 403s yt-dlp's default UA aggressively.
 _HEADERS = {
     "User-Agent": (
@@ -52,6 +86,7 @@ def download_best(url: str) -> DownloadResult:
         "retries": 3,
         "socket_timeout": 30,
         "http_headers": _HEADERS,
+        "logger": _YDL_LOGGER,
     }
 
     try:
@@ -99,6 +134,7 @@ def get_direct_url(url: str) -> DownloadResult:
         "quiet": True,
         "no_warnings": True,
         "http_headers": _HEADERS,
+        "logger": _YDL_LOGGER,
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
