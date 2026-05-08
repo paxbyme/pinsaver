@@ -1,9 +1,10 @@
 import asyncio
 import logging
 import os
+import time
 
 from dotenv import load_dotenv
-from telegram.error import NetworkError, TimedOut
+from telegram.error import Conflict, NetworkError, TimedOut
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from bot.handlers import cmd_help, cmd_start, handle_message
@@ -43,8 +44,20 @@ def main() -> None:
     # set one explicitly before handing off to PTB's synchronous runner.
     asyncio.set_event_loop(asyncio.new_event_loop())
 
-    logger.info("Bot is running…")
-    app.run_polling(drop_pending_updates=True)
+    # Conflict (another instance polling) terminates run_polling. During
+    # Railway deploy transitions the old container can briefly overlap
+    # with the new one — retry instead of exiting so Railway doesn't
+    # leave the service stopped.
+    backoff = 5
+    while True:
+        logger.info("Bot is running…")
+        try:
+            app.run_polling(drop_pending_updates=True)
+            return
+        except Conflict as exc:
+            logger.warning("Polling conflict (%s); retrying in %ds", exc, backoff)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 60)
 
 
 if __name__ == "__main__":
